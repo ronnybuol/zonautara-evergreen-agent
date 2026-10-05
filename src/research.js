@@ -6,9 +6,6 @@ async function brave(query,env){
  const u=new URL("https://api.search.brave.com/res/v1/web/search");
  u.searchParams.set("q",query);
  u.searchParams.set("count","10");
- u.searchParams.set("search_lang","id");
- u.searchParams.set("ui_lang","en-US");
- u.searchParams.set("safesearch","moderate");
  const r=await fetch(u,{headers:{"Accept":"application/json","X-Subscription-Token":token}});
  if(!r.ok){let detail="";try{const e=await r.json();detail=e?.error?.detail||e?.error?.code||JSON.stringify(e)}catch{detail=await r.text()}throw new Error("Brave Search HTTP "+r.status+(detail?": "+detail:""));}
  const d=await r.json();
