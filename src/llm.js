@@ -2,7 +2,7 @@ function parseJson(text){
  const raw=String(text||"").trim().replace(/^\`\`\`(?:json)?\s*/i,"").replace(/\s*\`\`\`$/,"");
  try{return JSON.parse(raw)}catch{const a=raw.indexOf("{"),b=raw.lastIndexOf("}");if(a>=0&&b>a)return JSON.parse(raw.slice(a,b+1));throw new Error("LLM JSON tidak valid")}
 }
-async function askJson(instruction,settings,env,temperature=0.1){
+export async function askJson(instruction,settings,env,temperature=0.1){
  const token=String(env.OPENROUTER_API_KEY||"").trim();
  if(!token)throw new Error("OPENROUTER_API_KEY belum dipasang");
  const model=(settings.llm_model||"").trim()||"openrouter/free";
