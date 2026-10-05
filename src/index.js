@@ -19,7 +19,7 @@ async function opportunity(category,provider,env,s={}){
  for(const query of queries){const research=await researchQuery(query+" Indonesia",provider,env),evaluation=evaluateCandidate(query,research);tested.push({...evaluation,research});}
  tested.sort((a,b)=>b.score-a.score);
  const best=tested.find(x=>x.decision==="CONTINUE")||tested[0]||null;
- return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
+ return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,editorial_fit:x.editorial_fit,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
 }
 async function runCycle(env,source="cron"){
  const s=await settings(env);if(s.enabled!=="true")return{ok:true,skipped:true,reason:"agent_paused"};
