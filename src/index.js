@@ -1,6 +1,7 @@
 import { dashboard } from "./ui.js";
 import { researchTopic,researchQuery,providerState } from "./research.js";
 import { discoverQueries,evaluateCandidate } from "./opportunity.js";
+import { curateTopics,llmState } from "./llm.js";
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json;charset=UTF-8",...headers}});
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
@@ -8,13 +9,17 @@ function inWindow(now,start,end){return start<=end?now>=start&&now<=end:now>=sta
 async function sha256(s){const h=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,"0")).join("");}
 async function sessionToken(password){return sha256("zea-session:"+password);}
 async function authorized(req,env){if(!env.ADMIN_PASSWORD)return false;const cookie=req.headers.get("cookie")||"",m=cookie.match(/(?:^|;\s*)zea_session=([^;]+)/);return !!m&&m[1]===await sessionToken(String(env.ADMIN_PASSWORD));}
-async function opportunity(category,provider,env){
+async function opportunity(category,provider,env,s={}){
  const seed=await researchQuery(category+" panduan masalah teknik jenis Indonesia",provider,env);
- const queries=discoverQueries(category,seed),tested=[];
+ let queries=[],curator=null;
+ if((s.llm_provider||"openrouter")==="openrouter"&&env.OPENROUTER_API_KEY){
+  curator=await curateTopics(category,seed,s,env);queries=curator.candidates.map(x=>x.query);
+ }else queries=discoverQueries(category,seed);
+ const tested=[];
  for(const query of queries){const research=await researchQuery(query+" Indonesia",provider,env),evaluation=evaluateCandidate(query,research);tested.push({...evaluation,research});}
  tested.sort((a,b)=>b.score-a.score);
  const best=tested.find(x=>x.decision==="CONTINUE")||tested[0]||null;
- return {category,seed_query:seed.query,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
+ return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
 }
 async function runCycle(env,source="cron"){
  const s=await settings(env);if(s.enabled!=="true")return{ok:true,skipped:true,reason:"agent_paused"};
@@ -25,7 +30,7 @@ async function runCycle(env,source="cron"){
  const list=(s.topics||"Pengetahuan umum").split(",").map(x=>x.trim()).filter(Boolean),category=list[Math.floor(Math.random()*list.length)];
  const q=await env.DB.prepare("INSERT INTO jobs(status,topic,reason) VALUES('scoring',?,'mencari peluang evergreen')").bind(category).run(),id=q.meta.last_row_id;
  try{
-  const o=await opportunity(category,s.research_provider||"brave",env),b=o.best;
+  const o=await opportunity(category,s.research_provider||"brave",env,s),b=o.best;
   const status=b&&b.decision==="CONTINUE"?"researched":"rejected",reason=b?`skor ${b.score}/100 · ${b.source_count} sumber · ${b.domain_count} domain · ${b.intent}`:"tidak ada kandidat";
   await env.DB.prepare("UPDATE jobs SET status=?,keyword=?,score=?,reason=?,article_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,b?.query||"",b?.score||0,reason,JSON.stringify({opportunity:o,research:b?.research||null}),id).run();
   return{ok:true,job_id:id,topic:category,opportunity:o};
@@ -37,9 +42,9 @@ export default{async fetch(req,env){const u=new URL(req.url);
  const auth=await authorized(req,env);
  if(u.pathname==="/"||u.pathname==="/dashboard")return new Response(dashboard,{headers:{"content-type":"text/html;charset=UTF-8"}});
  if(u.pathname.startsWith("/api/")&&!auth)return json({ok:false,error:"unauthorized"},401);
- if(u.pathname==="/api/status"){const s=await settings(env);const jobs=await env.DB.prepare("SELECT * FROM jobs ORDER BY id DESC LIMIT 20").all();return json({settings:s,jobs:jobs.results,providers:providerState(env)});}
+ if(u.pathname==="/api/status"){const s=await settings(env);const jobs=await env.DB.prepare("SELECT * FROM jobs ORDER BY id DESC LIMIT 20").all();return json({settings:s,jobs:jobs.results,providers:providerState(env),llm:llmState(env)});}
  if(u.pathname==="/api/settings"&&req.method==="POST"){const body=await req.json(),allowed=["enabled","mode","active_start","active_end","daily_limit","min_publish_score","min_review_score","topics","research_provider","llm_provider","llm_model"];for(const k of allowed)if(body[k]!==undefined)await env.DB.prepare("INSERT INTO settings(key,value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(k,String(body[k])).run();return json({ok:true,settings:await settings(env)});}
  if(u.pathname==="/api/research-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{return json({ok:true,...await researchTopic(b.topic||"pengetahuan umum",b.provider||s.research_provider||"brave",env)});}catch(e){return json({ok:false,error:e.message},400);}}
- if(u.pathname==="/api/opportunity-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{return json({ok:true,...await opportunity(b.category||"pengetahuan umum",b.provider||s.research_provider||"brave",env)});}catch(e){return json({ok:false,error:e.message},400);}}
+ if(u.pathname==="/api/opportunity-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{return json({ok:true,...await opportunity(b.category||"pengetahuan umum",b.provider||s.research_provider||"brave",env,s)});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/run"&&req.method==="POST")return json(await runCycle(env,"manual"));
  return json({error:"not_found"},404);},async scheduled(event,env,ctx){ctx.waitUntil(runCycle(env,"cron"))}};
