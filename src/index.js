@@ -22,7 +22,7 @@ async function opportunity(category,provider,env,s={}){
  for(const query of queries){const research=await researchQuery(query+" Indonesia",provider,env),evaluation=evaluateCandidate(query,research);tested.push({...evaluation,research});}
  tested.sort((a,b)=>b.score-a.score);
  const best=tested.find(x=>x.decision==="CONTINUE")||tested[0]||null;
- return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,editorial_fit:x.editorial_fit,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
+ return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,editorial_fit:x.editorial_fit,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,institutional_share:x.institutional_share,decision:x.decision}))};
 }
 async function evidenceLedger(topic,research,s,env){const read=await readSources(research.results||[]),packet=sourcePacket(read);if(packet.length<2)return finalizeLedger(topic,read,{claims:[],gaps:["Kurang dari dua sumber dapat dibaca penuh"]},"none");const built=evidencePrompt(topic,{results:packet.map(x=>({id:x.id,title:x.title,url:x.url,snippet:x.text}))}),out=await askJson(built.instruction,s,env,0.1,"Evidence Ledger");return finalizeLedger(topic,read,out.data,out.model);}
 function mergeResearch(a,b){
