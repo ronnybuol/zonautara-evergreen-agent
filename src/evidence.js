@@ -1,3 +1,4 @@
+import { enforceEvidencePolicy } from "./source-reader.js";
 function normalizeClaim(x,validIds){
  const ids=(Array.isArray(x.source_ids)?x.source_ids:[]).map(Number).filter(id=>validIds.has(id));
  let status=String(x.status||"verify").toLowerCase(),confidence=String(x.confidence||"low").toLowerCase();
@@ -14,7 +15,8 @@ export function evidencePrompt(topic,research){
 }
 export function finalizeLedger(topic,sources,data,model){
  const validIds=new Set(sources.map(x=>x.id));
- const claims=(Array.isArray(data.claims)?data.claims:[]).map(x=>normalizeClaim(x,validIds)).filter(x=>x.claim);
+ let claims=(Array.isArray(data.claims)?data.claims:[]).map(x=>normalizeClaim(x,validIds)).filter(x=>x.claim);
+ claims=enforceEvidencePolicy(claims,sources);
  for(const x of claims){
   if(x.relevance==="offtopic")x.status="reject";
   if(x.time_sensitive&&x.confidence!=="high"&&x.status==="usable")x.status="verify";
