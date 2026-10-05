@@ -23,6 +23,13 @@ export function finalizeLedger(topic,sources,data,model){
  }
  const usable=claims.filter(x=>x.status==="usable"),core=usable.filter(x=>x.relevance==="core"),gaps=Array.isArray(data.gaps)?data.gaps.map(x=>typeof x==="string"?x:(x?.gap||x?.issue||x?.description||x?.reason||JSON.stringify(x))):[];
  const intent=intentOf(topic),coverage=intent==="how-to"?(core.length>=3?"adequate":"insufficient"):(core.length>=2?"adequate":"insufficient");
- const ready=usable.length>=5&&coverage==="adequate";
- return {topic,intent,model,sources,claims,usable_count:usable.length,core_usable_count:core.length,total_claims:claims.length,gaps,coverage,ready,gate_reason:ready?"Bukti inti cukup":"Bukti inti belum cukup untuk menjawab intent artikel"};
+ const minimumCore=intent==="how-to"?3:2,minimumUsable=5;
+ const ready=usable.length>=minimumUsable&&core.length>=minimumCore&&coverage==="adequate";
+ let gateReason="Bukti inti cukup";
+ if(!ready){
+  if(core.length<minimumCore)gateReason="Klaim inti belum cukup: "+core.length+"/"+minimumCore;
+  else if(usable.length<minimumUsable)gateReason="Jumlah klaim usable belum cukup: "+usable.length+"/"+minimumUsable;
+  else gateReason="Cakupan evidence belum memadai";
+ }
+ return {topic,intent,model,sources,claims,usable_count:usable.length,core_usable_count:core.length,total_claims:claims.length,gaps,coverage,ready,gate_reason:gateReason};
 }
