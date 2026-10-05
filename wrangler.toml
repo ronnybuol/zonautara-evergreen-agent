@@ -1,0 +1,12 @@
+name = "zonautara-evergreen-agent"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+[triggers]
+crons = ["*/15 * * * *"]
+[[d1_databases]]
+binding = "DB"
+database_name = "evergreen-agent"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+[vars]
+APP_TIMEZONE = "Asia/Makassar"
+DEFAULT_MODE = "draft"
