@@ -1,7 +1,8 @@
 const current=/\b(202[0-9]|hari ini|terbaru|terkini|breaking|viral|update|jadwal|harga hari ini|pilkada|pemilu)\b/i;
 const howto=/\b(cara|panduan|tips|langkah|memilih|mengatasi|membuat|menanam|merawat|budidaya|teknik)\b/i;
 const explain=/\b(apa|mengapa|fakta|jenis|fungsi|manfaat|perbedaan|kesalahan|ciri|penyebab|sistem)\b/i;
-const commercial=/\b(harga|beli|jual|produk|promo|diskon|kredit|pinjaman|supplier|toko)\b/i;\nconst narrow=/\b(program studi|prodi|s1|s2|s3|magister|doktor|universitas|kampus|jurusan|mata kuliah|lowongan|karier|sertifikasi|pendaftaran)\b/i;
+const commercial=/\b(harga|beli|jual|produk|promo|diskon|kredit|pinjaman|supplier|toko)\b/i;
+const narrow=/\b(program studi|prodi|s1|s2|s3|magister|doktor|universitas|kampus|jurusan|mata kuliah|lowongan|karier|sertifikasi|pendaftaran)\b/i;
 const authorityDomains=/\.(go\.id|ac\.id)$/i;
 const trusted=/\b(brin\.go\.id|bps\.go\.id|pertanian\.go\.id|kemkes\.go\.id|bmkg\.go\.id|who\.int|fao\.org|un\.org|worldbank\.org)\b/i;
 const noise=/\b(panduan|lengkap|artikel|mengenal|kenali|contoh|mulai|memulai|indonesia|pemula|terbaru|praktis|baik|bidang|prodi)\b/i;
