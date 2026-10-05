@@ -1,6 +1,6 @@
 import { dashboard } from "./ui.js";
 import { researchTopic,researchQuery,providerState } from "./research.js";
-import { candidateQueries,evaluateCandidate } from "./opportunity.js";
+import { discoverQueries,evaluateCandidate } from "./opportunity.js";
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json;charset=UTF-8",...headers}});
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
@@ -9,10 +9,12 @@ async function sha256(s){const h=await crypto.subtle.digest("SHA-256",new TextEn
 async function sessionToken(password){return sha256("zea-session:"+password);}
 async function authorized(req,env){if(!env.ADMIN_PASSWORD)return false;const cookie=req.headers.get("cookie")||"",m=cookie.match(/(?:^|;\s*)zea_session=([^;]+)/);return !!m&&m[1]===await sessionToken(String(env.ADMIN_PASSWORD));}
 async function opportunity(category,provider,env){
- const tested=[];
- for(const query of candidateQueries(category)){const research=await researchQuery(query+" Indonesia",provider,env),evaluation=evaluateCandidate(query,research);tested.push({...evaluation,research});}
+ const seed=await researchQuery(category+" panduan masalah teknik jenis Indonesia",provider,env);
+ const queries=discoverQueries(category,seed),tested=[];
+ for(const query of queries){const research=await researchQuery(query+" Indonesia",provider,env),evaluation=evaluateCandidate(query,research);tested.push({...evaluation,research});}
  tested.sort((a,b)=>b.score-a.score);
- return {category,best:tested[0],candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,decision:x.decision}))};
+ const best=tested.find(x=>x.decision==="CONTINUE")||tested[0]||null;
+ return {category,seed_query:seed.query,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
 }
 async function runCycle(env,source="cron"){
  const s=await settings(env);if(s.enabled!=="true")return{ok:true,skipped:true,reason:"agent_paused"};
