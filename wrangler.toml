@@ -6,7 +6,7 @@ crons = ["*/15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "evergreen-agent"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "6a750671-e799-4b93-a670-0bb672233abe"
 [vars]
 APP_TIMEZONE = "Asia/Makassar"
 DEFAULT_MODE = "draft"
