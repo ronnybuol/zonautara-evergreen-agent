@@ -13,7 +13,7 @@ function commercialShare(results){if(!results.length)return 0;return results.fil
 function norm(s){return String(s||"").toLowerCase().replace(/[–—|:;,()[\]!?]/g," ").replace(/[^a-z0-9à-ÿ\s-]/gi," ").replace(/\s+/g," ").trim()}
 function usefulPhrase(p,category){
  const w=p.split(" ").filter(Boolean),cat=category.toLowerCase();
- if(w.length<2||w.length>6||current.test(p))return false;
+ if(w.length<2||w.length>6||current.test(p)||badEdge.test(p)||/^(?:\\d+\\s+|www\\b)/i.test(p))return false;
  if(w.every(x=>x===cat||noise.test(x)))return false;
  if(/^(cara|panduan|tips|fakta|artikel|contoh)\s*$/.test(p))return false;
  return true;
