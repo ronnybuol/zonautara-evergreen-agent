@@ -72,6 +72,10 @@ export default{async fetch(req,env){const u=new URL(req.url);
   const extra=await researchQuery(o.best.query+" sumber resmi jurnal panduan teknologi manfaat keterbatasan",b.provider||s.research_provider||"brave",env);
   research=mergeResearch(research,extra);ledger=await evidenceLedger(o.best.query,research,s,env);balanced=balanceEvidence(ledger);enriched=true;
  }
+ if(!ledger.ready&&ledger.claims.some(x=>x.status==="verify"&&/resmi|regulator/i.test(x.note||""))){
+  const regulator=await researchQuery(o.best.query+" site:pertanian.go.id pengendalian hama terpadu pedoman resmi pestisida",b.provider||s.research_provider||"brave",env);
+  research=mergeResearch(research,regulator);ledger=await evidenceLedger(o.best.query,research,s,env);balanced=balanceEvidence(ledger);enriched=true;
+ }
  if(!ledger.ready)return json({ok:false,error:"Evidence Ledger belum READY setelah riset pengayaan",topic:o.best.query,enriched,evidence:ledger},400);
  if(!balanced.ready)return json({ok:false,error:"Evidence belum cukup untuk Writer setelah riset pengayaan",topic:o.best.query,enriched,balanced,evidence_summary:{usable:ledger.usable_count,core:ledger.core_usable_count,coverage:ledger.coverage}},400);
  const preview=await writerPreview(o.best.query,ledger,s,env);return json({ok:true,topic:o.best.query,score:o.best.score,enriched,evidence_summary:{usable:ledger.usable_count,core:ledger.core_usable_count,coverage:ledger.coverage},...preview});}catch(e){return json({ok:false,error:e.message},400);}}
