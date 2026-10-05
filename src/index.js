@@ -12,6 +12,7 @@ const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{stat
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
 function inWindow(now,start,end){return start<=end?now>=start&&now<=end:now>=start||now<=end;}
+function timeout(promise,ms,label){return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+" melewati batas waktu "+Math.round(ms/1000)+" detik")),ms))]);}
 async function sha256(s){const h=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,"0")).join("");}
 async function sessionToken(password){return sha256("zea-session:"+password);}
 async function authorized(req,env){if(!env.ADMIN_PASSWORD)return false;const cookie=req.headers.get("cookie")||"",m=cookie.match(/(?:^|;\s*)zea_session=([^;]+)/);return !!m&&m[1]===await sessionToken(String(env.ADMIN_PASSWORD));}
@@ -81,6 +82,6 @@ export default{async fetch(req,env){const u=new URL(req.url);
  }
  if(!ledger.ready)return json({ok:false,error:"Evidence Ledger belum READY setelah riset pengayaan",topic:o.best.query,enriched,evidence:ledger},400);
  if(!balanced.ready)return json({ok:false,error:"Evidence belum cukup untuk Writer setelah riset pengayaan",topic:o.best.query,enriched,balanced,evidence_summary:{usable:ledger.usable_count,core:ledger.core_usable_count,coverage:ledger.coverage}},400);
- const preview=await writerPreview(o.best.query,ledger,s,env);return json({ok:true,topic:o.best.query,score:o.best.score,enriched,evidence_summary:{usable:ledger.usable_count,core:ledger.core_usable_count,coverage:ledger.coverage},...preview});}catch(e){return json({ok:false,error:e.message},400);}}
+ const preview=await timeout(writerPreview(o.best.query,ledger,s,env),120000,"Writer / Fact Checker");return json({ok:true,topic:o.best.query,score:o.best.score,enriched,evidence_summary:{usable:ledger.usable_count,core:ledger.core_usable_count,coverage:ledger.coverage},...preview});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/run"&&req.method==="POST")return json(await runCycle(env,"manual"));
  return json({error:"not_found"},404);},async scheduled(event,env,ctx){ctx.waitUntil(runCycle(env,"cron"))}};
