@@ -5,6 +5,7 @@ import { curateTopics,llmState,askJson } from "./llm.js";
 import { evidencePrompt,finalizeLedger } from "./evidence.js";
 import { readSources,sourcePacket } from "./source-reader.js";
 import { balanceEvidence,writerPrompt,finalizeArticle } from "./writer.js";
+import { languageGate,verifierPrompt,finalizeVerification } from "./verifier.js";
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json;charset=UTF-8",...headers}});
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
@@ -35,7 +36,10 @@ async function writerPreview(topic,ledger,s,env){
  const balanced=balanceEvidence(ledger);
  if(!balanced.ready)throw new Error("Evidence belum cukup untuk Writer · "+balanced.core_count+" klaim core / "+balanced.total+" usable");
  const prompt=writerPrompt(topic,ledger,balanced),out=await askJson(prompt,s,env,0.25,"Article Writer");
- return {balanced,article:finalizeArticle(out.data,ledger,balanced,out.model)};
+ const article=finalizeArticle(out.data,ledger,balanced,out.model),language=languageGate(article);
+ if(!language.pass)return {balanced,article,verification:{model:"deterministic",language,paragraphs:[],summary:{total:0,supported:0,partial:0,unsupported:0,support_ratio:0},decision:"REJECT",ready:false,reason:"Artikel tidak dominan Bahasa Indonesia"}};
+ const checked=await askJson(verifierPrompt(article,balanced),s,env,0,"Fact Checker");
+ return {balanced,article,verification:finalizeVerification(checked.data,article,language,checked.model)};
 }
 async function runCycle(env,source="cron"){
  const s=await settings(env);if(s.enabled!=="true")return{ok:true,skipped:true,reason:"agent_paused"};
