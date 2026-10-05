@@ -1,1 +1,16 @@
-{"name":"zonautara-evergreen-agent","version":"0.1.0","private":true,"scripts":{"dev":"wrangler dev","deploy":"wrangler deploy","db:init":"wrangler d1 execute evergreen-agent --remote --file=./schema.sql"},"devDependencies":{"wrangler":"^4.0.0"}}
+{
+  "name": "zonautara-evergreen-agent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute evergreen-agent --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "unpdf": "^1.4.0"
+  }
+}
