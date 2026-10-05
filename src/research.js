@@ -21,11 +21,11 @@ async function tavily(query,env){
 }
 
 const blocked=/\\b(news|berita|breaking|hari ini|kemarin|terbaru|viral|update|live)\\b/i;
-export async function researchTopic(topic,provider,env){
- const query=topic+" panduan fakta penjelasan tips Indonesia";
+export async function researchQuery(query,provider,env){
  const results=provider==="tavily"?await tavily(query,env):await brave(query,env);
  const safe=results.filter(x=>x.url&&x.title&&!blocked.test(x.title)).slice(0,8);
  const domains=[...new Set(safe.map(x=>{try{return new URL(x.url).hostname.replace(/^www\\./,"")}catch{return""}}).filter(Boolean))];
  return {query,provider,results:safe,domain_count:domains.length,enough:safe.length>=4&&domains.length>=3};
 }
+export async function researchTopic(topic,provider,env){return researchQuery(topic+" panduan fakta penjelasan tips Indonesia",provider,env);}
 export function providerState(env){return {brave:!!env.BRAVE_SEARCH_API_KEY,tavily:!!env.TAVILY_API_KEY};}
