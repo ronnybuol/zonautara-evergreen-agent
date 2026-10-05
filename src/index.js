@@ -1,7 +1,8 @@
 import { dashboard } from "./ui.js";
 import { researchTopic,researchQuery,providerState } from "./research.js";
 import { discoverQueries,evaluateCandidate } from "./opportunity.js";
-import { curateTopics,llmState } from "./llm.js";
+import { curateTopics,llmState,askJson } from "./llm.js";
+import { evidencePrompt,finalizeLedger } from "./evidence.js";
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json;charset=UTF-8",...headers}});
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
