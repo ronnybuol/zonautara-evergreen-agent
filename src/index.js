@@ -3,6 +3,7 @@ import { researchTopic,researchQuery,providerState } from "./research.js";
 import { discoverQueries,evaluateCandidate } from "./opportunity.js";
 import { curateTopics,llmState,askJson } from "./llm.js";
 import { evidencePrompt,finalizeLedger } from "./evidence.js";
+import { readSources,sourcePacket } from "./source-reader.js";
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json;charset=UTF-8",...headers}});
 async function settings(env){const r=await env.DB.prepare("SELECT key,value FROM settings").all();return Object.fromEntries(r.results.map(x=>[x.key,x.value]));}
 function localParts(tz){const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:tz,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));return {hm:p.hour+":"+p.minute,date:p.year+"-"+p.month+"-"+p.day};}
@@ -22,7 +23,7 @@ async function opportunity(category,provider,env,s={}){
  const best=tested.find(x=>x.decision==="CONTINUE")||tested[0]||null;
  return {category,seed_query:seed.query,curator:curator?{provider:curator.provider,model:curator.model,candidates:curator.candidates}:null,best,candidates:tested.map(x=>({query:x.query,intent:x.intent,score:x.score,editorial_fit:x.editorial_fit,evergreen:x.evergreen,source_count:x.source_count,domain_count:x.domain_count,authority_domains:x.authority_domains,commercial_share:x.commercial_share,decision:x.decision}))};
 }
-async function evidenceLedger(topic,research,s,env){const built=evidencePrompt(topic,research),out=await askJson(built.instruction,s,env,0.1);return finalizeLedger(topic,built.sources,out.data,out.model);}
+async function evidenceLedger(topic,research,s,env){const read=await readSources(research.results||[]),packet=sourcePacket(read);if(packet.length<2)return finalizeLedger(topic,read,{claims:[],gaps:["Kurang dari dua sumber dapat dibaca penuh"]},"none");const built=evidencePrompt(topic,{results:packet.map(x=>({title:x.title,url:x.url,snippet:x.text}))}),out=await askJson(built.instruction,s,env,0.1);return finalizeLedger(topic,read,out.data,out.model);}
 async function runCycle(env,source="cron"){
  const s=await settings(env);if(s.enabled!=="true")return{ok:true,skipped:true,reason:"agent_paused"};
  const lp=localParts(s.timezone||"Asia/Makassar");if(!inWindow(lp.hm,s.active_start,s.active_end))return{ok:true,skipped:true,reason:"outside_active_window",now:lp.hm};
