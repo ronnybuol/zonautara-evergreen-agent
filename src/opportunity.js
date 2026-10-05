@@ -2,7 +2,8 @@ const current=/\b(202[0-9]|hari ini|terbaru|terkini|breaking|viral|update|jadwal
 const howto=/\b(cara|panduan|tips|langkah|memilih|mengatasi|membuat|menanam|merawat|budidaya|teknik)\b/i;
 const explain=/\b(apa|mengapa|fakta|jenis|fungsi|manfaat|perbedaan|kesalahan|ciri|penyebab|sistem)\b/i;
 const commercial=/\b(harga|beli|jual|produk|promo|diskon|kredit|pinjaman|supplier|toko)\b/i;
-const narrow=/\b(program studi|prodi|s1|s2|s3|magister|doktor|universitas|kampus|jurusan|mata kuliah|lowongan|karier|sertifikasi|pendaftaran)\b/i;
+const narrow=/\b(program studi|prodi|s1|s2|s3|magister|doktor|universitas|kampus|jurusan|mata kuliah|lowongan|karier|peluang kerja|sertifikasi|pendaftaran|beasiswa)\b/i;
+const badEdge=/\b(login|pdf|download|repository|jurnal|volume|nomor|halaman)\b/i;
 const authorityDomains=/\.(go\.id|ac\.id)$/i;
 const trusted=/\b(brin\.go\.id|bps\.go\.id|pertanian\.go\.id|kemkes\.go\.id|bmkg\.go\.id|who\.int|fao\.org|un\.org|worldbank\.org)\b/i;
 const noise=/\b(panduan|lengkap|artikel|mengenal|kenali|contoh|mulai|memulai|indonesia|pemula|terbaru|praktis|baik|bidang|prodi)\b/i;
@@ -57,5 +58,13 @@ export function evaluateCandidate(query,research){
  const evergreen=current.test(query)?0:15,intent=(howto.test(query)||explain.test(query))?10:7,specific=specificity(query);
  const commercialPenalty=Math.round(commerce*18);
  const score=Math.max(0,Math.min(100,Math.round(evidence+diversity+authority+evergreen+intent+specific-commercialPenalty)));
- return {query,intent:intentOf(query),score,evergreen:!current.test(query),source_count:research.results.length,domain_count:research.domain_count,authority_domains:auth,commercial_share:Number(commerce.toFixed(2)),decision:research.enough&&score>=68?"CONTINUE":"SKIP"};
+ let editorialFit=100;
+ if(narrow.test(query))editorialFit-=55;
+ if(commerce>=0.5)editorialFit-=35;else if(commerce>=0.3)editorialFit-=18;
+ if(query.trim().split(/\s+/).length<3)editorialFit-=15;
+ const institutional=(research.results||[]).filter(x=>narrow.test((x.title||"")+" "+(x.snippet||""))).length/Math.max(1,research.results.length);
+ if(institutional>=0.6)editorialFit-=35;else if(institutional>=0.4)editorialFit-=20;
+ editorialFit=Math.max(0,editorialFit);
+ const decision=research.enough&&score>=68&&editorialFit>=70?"CONTINUE":"SKIP";
+ return {query,intent:intentOf(query),score,editorial_fit:editorialFit,evergreen:!current.test(query),source_count:research.results.length,domain_count:research.domain_count,authority_domains:auth,commercial_share:Number(commerce.toFixed(2)),institutional_share:Number(institutional.toFixed(2)),decision};
 }
