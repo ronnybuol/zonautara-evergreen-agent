@@ -1,3 +1,4 @@
+import { extractText,getDocumentProxy } from "unpdf";
 const primary=/\.(go\.id|ac\.id)$/i;
 const trusted=/\b(brin\.go\.id|bps\.go\.id|pertanian\.go\.id|kemendesa\.go\.id|ipb\.ac\.id|fao\.org|who\.int|worldbank\.org|un\.org)\b/i;
 const risky=/\b(pestisida|insektisida|fungisida|herbisida|nematisida|rodentisida|bahan aktif|dosis|semprot|aplikasi kimia)\b/i;
@@ -14,6 +15,15 @@ async function readOne(source){
   const r=await fetch(source.url,{headers:{"User-Agent":"Mozilla/5.0 ZonautaraEvergreenAgent/0.1"},redirect:"follow",signal:AbortSignal.timeout(8000)});
   if(!r.ok)return {...base,read_error:"HTTP "+r.status};
   const type=(r.headers.get("content-type")||"").toLowerCase();
+  if(type.includes("application/pdf")||/\.pdf(?:$|\?)/i.test(source.url)){
+   const buffer=await r.arrayBuffer();
+   if(buffer.byteLength>8000000)return {...base,read_error:"PDF too large"};
+   const doc=await getDocumentProxy(new Uint8Array(buffer));
+   const extracted=await extractText(doc,{mergePages:true});
+   const text=String(extracted.text||"").replace(/\s+/g," ").trim().slice(0,14000);
+   if(text.length<300)return {...base,read_error:"PDF text too short"};
+   return {...base,evidence_mode:"fulltext",content_type:"pdf",text};
+  }
   if(!type.includes("text/html")&&!type.includes("text/plain"))return {...base,read_error:"unsupported "+type.split(";")[0]};
   const text=htmlText(await r.text());
   if(text.length<300)return {...base,read_error:"content too short"};
