@@ -19,7 +19,7 @@ export function balanceEvidence(ledger){
   if(picked.length>=24)break;
  }
  const core=picked.filter(x=>x.relevance==="core");
- return {claims:picked.map(({_weight,_primary,_official,_multi,...x})=>x),core_count:core.length,total:picked.length,source_usage:Object.fromEntries(perSource),ready:ledger.ready&&core.length>=5};
+ return {claims:picked.map(({_weight,_primary,_official,_multi,...x})=>x),core_count:core.length,total:picked.length,source_usage:Object.fromEntries(perSource),ready:ledger.ready&&core.length>=4};
 }
 export function writerPrompt(topic,ledger,balanced){
  const sourceIndex=(ledger.sources||[]).filter(s=>balanced.claims.some(c=>(c.source_ids||[]).includes(s.id))).map(s=>({id:s.id,title:s.title,url:s.url,domain:s.domain,tier:s.tier,source_class:s.source_class}));
