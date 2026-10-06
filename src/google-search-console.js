@@ -145,7 +145,7 @@ export function editorialOpportunityQueue(report){
 }
 
 
-function textOnly(html){return String(html||"").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim()}
+function textOnly(html){return String(html||"").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").replace(/&#8220;|&ldquo;/gi,"“").replace(/&#8221;|&rdquo;/gi,"”").replace(/&#8216;|&lsquo;/gi,"‘").replace(/&#8217;|&rsquo;/gi,"’").replace(/&#8211;|&ndash;/gi,"–").replace(/&#8212;|&mdash;/gi,"—").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/\s+/g," ").trim()}
 function tokens(s){return [...new Set(String(s||"").toLowerCase().normalize("NFKC").replace(/[^a-z0-9\u00c0-\u024f\s-]/g," ").split(/\s+/).filter(x=>x.length>2&&!["yang","dan","atau","dari","untuk","dengan","pada","adalah","ini","itu"].includes(x)))]}
 function queryCoverage(query,text){
  const ts=tokens(query);if(!ts.length)return 0;
@@ -190,8 +190,12 @@ export async function auditExistingPage(item){
  const lexicalGaps=coverage.filter(x=>x.coverage<0.6).map(x=>x.query);
  const covered=coverage.filter(x=>x.coverage>=0.6).map(x=>x.query);
  const semanticGaps=intentGaps(variants,coverage);
+ const byQuery=new Map((item.query_details||[]).map(x=>[String(x.query||"").toLowerCase(),x]));
+ const expansionCandidates=semanticGaps.filter(q=>{const d=byQuery.get(q.toLowerCase());return d&&d.impressions>=300&&d.position>10});
  let recommendation=item.editorial_action||item.action||"REFRESH";
- if(recommendation==="EXPAND"&&!semanticGaps.length)recommendation="REFRESH";
+ // Gap semantik sendiri belum cukup untuk membuat artikel baru. EXPAND membutuhkan
+ // sub-intent berbeda dengan demand terukur dan ranking halaman utama yang masih lemah.
+ if(recommendation==="EXPAND"&&!expansionCandidates.length)recommendation="REFRESH";
  if(recommendation==="REFRESH"&&!semanticGaps.length&&item.ctr>=0.03&&body.split(/\s+/).filter(Boolean).length>=500)recommendation="PROTECT";
- return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,lexical_gap_queries:lexicalGaps,intent_gap_queries:semanticGaps,gap_queries:semanticGaps,coverage,recommendation,audited_at:new Date().toISOString()};
+ return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,lexical_gap_queries:lexicalGaps,intent_gap_queries:semanticGaps,expansion_candidates:expansionCandidates,gap_queries:semanticGaps,coverage,recommendation,audited_at:new Date().toISOString()};
 }
