@@ -22,6 +22,7 @@ export function finalizeLedger(topic,sources,data,model){
   if(x.time_sensitive&&x.confidence!=="high"&&x.status==="usable")x.status="verify";
  }
  const usable=claims.filter(x=>x.status==="usable"),core=usable.filter(x=>x.relevance==="core"),gaps=Array.isArray(data.gaps)?data.gaps.map(x=>typeof x==="string"?x:(x?.gap||x?.issue||x?.description||x?.reason||JSON.stringify(x))):[];
+ const editorial_notes=Array.isArray(data.editorial_notes)?data.editorial_notes.map(x=>typeof x==="string"?x:(x?.note||x?.issue||x?.description||JSON.stringify(x))):[];
  const intent=intentOf(topic),coverage=intent==="how-to"?(core.length>=3?"adequate":"insufficient"):(core.length>=2?"adequate":"insufficient");
  const minimumCore=intent==="how-to"?3:2,minimumUsable=5;
  const ready=usable.length>=minimumUsable&&core.length>=minimumCore&&coverage==="adequate";
@@ -31,13 +32,13 @@ export function finalizeLedger(topic,sources,data,model){
   else if(usable.length<minimumUsable)gateReason="Jumlah klaim usable belum cukup: "+usable.length+"/"+minimumUsable;
   else gateReason="Cakupan evidence belum memadai";
  }
- return {topic,intent,model,sources,claims,usable_count:usable.length,core_usable_count:core.length,total_claims:claims.length,gaps,coverage,ready,gate_reason:gateReason};
+ return {topic,intent,model,sources,claims,usable_count:usable.length,core_usable_count:core.length,total_claims:claims.length,gaps,editorial_notes,coverage,ready,gate_reason:gateReason};
 }
 
 
 export function refreshEvidencePrompt(brief,research,currentText=""){
  const sources=(research.results||[]).map((x,i)=>({id:Number(x.id)||i+1,title:x.title,url:x.url,snippet:x.snippet}));
  const goals=brief?.research_goals||[],queries=brief?.research_queries||[];
- const instruction="Susun Evidence Ledger untuk REFRESH artikel lama Zonautara. Gunakan HANYA SOURCES sebagai bukti. CURRENT_ARTICLE hanya konteks audit dan BUKAN sumber kebenaran. Verifikasi jawaban utama, tandai klaim lama yang tidak didukung bila terlihat, dan kumpulkan evidence yang benar-benar membantu tujuan refresh. Jangan menciptakan fakta baru. Prioritaskan sumber primer/otoritatif sesuai PREFERRED_SOURCES. Output JSON dengan claims dan gaps. Setiap claim wajib memiliki source_ids, confidence high|medium|low, status usable|verify|reject, relevance core|supporting|offtopic, time_sensitive true|false. PRIMARY_QUERY: "+(brief?.search_console?.primary_query||"")+" RESEARCH_QUERIES: "+JSON.stringify(queries)+" GOALS: "+JSON.stringify(goals)+" PREFERRED_SOURCES: "+JSON.stringify(brief?.preferred_sources||[])+" CURRENT_TITLE: "+(brief?.current_title||"")+" CURRENT_ARTICLE: "+String(currentText||"").slice(0,10000)+" SOURCES: "+JSON.stringify(sources);
+ const instruction="Susun Evidence Ledger untuk REFRESH artikel lama Zonautara. Gunakan HANYA SOURCES sebagai bukti. CURRENT_ARTICLE hanya konteks audit dan BUKAN sumber kebenaran. Verifikasi jawaban utama, tandai klaim lama yang tidak didukung bila terlihat, dan kumpulkan evidence yang benar-benar membantu tujuan refresh. Jangan menciptakan fakta baru. Prioritaskan sumber primer/otoritatif sesuai PREFERRED_SOURCES. Output JSON dengan claims, gaps, dan editorial_notes. gaps HANYA untuk kekurangan bukti faktual/sumber. Masalah SEO, meta description, internal link, struktur, tanggal pembaruan, atau presentasi halaman wajib masuk editorial_notes, BUKAN gaps. Setiap claim wajib memiliki source_ids, confidence high|medium|low, status usable|verify|reject, relevance core|supporting|offtopic, time_sensitive true|false. PRIMARY_QUERY: "+(brief?.search_console?.primary_query||"")+" RESEARCH_QUERIES: "+JSON.stringify(queries)+" GOALS: "+JSON.stringify(goals)+" PREFERRED_SOURCES: "+JSON.stringify(brief?.preferred_sources||[])+" CURRENT_TITLE: "+(brief?.current_title||"")+" CURRENT_ARTICLE: "+String(currentText||"").slice(0,10000)+" SOURCES: "+JSON.stringify(sources);
  return {instruction,sources};
 }
