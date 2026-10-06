@@ -33,13 +33,20 @@ export async function searchConsoleSignals(env,siteUrl,type="web",days=28){
  const d=await r.json(),rows=(d.rows||[]).map(x=>type==="web"?{query:x.keys?.[0]||"",page:x.keys?.[1]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}:{query:"",page:x.keys?.[0]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0});
  return {type,startDate:start,endDate:end,rows};
 }
-const temporal=/\b(hari ini|kemarin|terbaru|breaking|live|update|jadwal|skor|prediksi|hasil pertandingan|gempa|pengumuman|finalis|korupsi|kpk|menteri|menkeu|pilkada|pemilu|202[4-9])\b/i;
+const temporal=/\b(hari ini|kemarin|terbaru|breaking|live|update|jadwal|skor|prediksi|hasil pertandingan|gempa|earthquake|m\d(?:\.\d)?|pengumuman|finalis|korupsi|koruptor|kasus|kpk|menteri|menkeu|pilkada|pemilu|202[4-9])\b/i;
+const newsPath=/\/202[4-9]\/\d{2}\/\d{2}\//i;
+const evergreenPath=/\/(tool|alat-gratis|kamus|glosarium|panduan)\//i;
 const evergreen=/\b(cara|apa itu|mengapa|kenapa|perbedaan|arti|mana yang benar|panduan|tips|jenis|fungsi|manfaat|daftar|letak|contoh|pengertian|penulisan)\b/i;
 export function opportunitySignals(report){
  if(report?.type!=="web")return (report?.rows||[]).filter(x=>x.page&&x.impressions>=10).map(x=>({...x,signal:Math.min(100,Math.round(Math.log10(x.impressions+1)*25)),action:"OBSERVE"})).sort((a,b)=>b.impressions-a.impressions).slice(0,50);
  const rows=(report?.rows||[]).filter(x=>x.query&&x.impressions>=10);
  return rows.map(x=>{
-  const q=x.query.toLowerCase(),ctrPct=x.ctr*100,isTemporal=temporal.test(q),isEvergreen=evergreen.test(q);
+  const q=x.query.toLowerCase(),p=String(x.page||"").toLowerCase(),ctrPct=x.ctr*100;
+  const queryTemporal=temporal.test(q),datedNews=newsPath.test(p)&&!evergreenPath.test(p);
+  const isEvergreenQuery=evergreen.test(q);
+  // Halaman bertanggal tidak otomatis dibuang: artikel bahasa/panduan lama bisa evergreen.
+  // Namun halaman bertanggal + query kejadian/aktor aktual harus dianggap temporal.
+  const isTemporal=queryTemporal||(datedNews&&!isEvergreenQuery&&/\b(gempa|earthquake|korup|kasus|menteri|menkeu|pemilu|pilkada|breaking)\b/i.test(q));
   let signal=0;
   if(x.impressions>=1000)signal+=35;else if(x.impressions>=300)signal+=28;else if(x.impressions>=100)signal+=22;else if(x.impressions>=30)signal+=14;else signal+=8;
   if(x.position>=4&&x.position<=15)signal+=20;else if(x.position>15&&x.position<=30)signal+=12;else if(x.position<4)signal+=8;
