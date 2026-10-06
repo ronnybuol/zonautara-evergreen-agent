@@ -155,16 +155,30 @@ function queryCoverage(query,text){
 export async function auditExistingPage(item){
  const page=String(item?.page||"");
  if(!/^https:\/\/zonautara\.com\//i.test(page))throw new Error("Audit hanya diizinkan untuk halaman zonautara.com");
- const r=await fetch(page,{headers:{"user-agent":"ZonautaraEvergreenAgent/1.0"}});
- if(!r.ok)throw new Error("Existing page HTTP "+r.status);
- const html=await r.text();
- const title=(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").replace(/\s*[-|]\s*Zonautara.*$/i,"").trim();
- const body=textOnly(html).slice(0,50000);
+ const u=new URL(page),parts=u.pathname.split("/").filter(Boolean);
+ const slug=parts[parts.length-1]||"";
+ let title="",body="",source="wordpress-rest";
+ if(slug){
+  const api="https://zonautara.com/wp-json/wp/v2/posts?slug="+encodeURIComponent(slug)+"&_fields=title,content,link";
+  const ar=await fetch(api,{headers:{"accept":"application/json","user-agent":"ZonautaraEvergreenAgent/1.0"}});
+  if(ar.ok){
+   const posts=await ar.json(),post=Array.isArray(posts)?posts[0]:null;
+   if(post){title=textOnly(post.title?.rendered||"");body=textOnly(post.content?.rendered||"").slice(0,50000);}
+  }
+ }
+ if(!body){
+  source="html-fallback";
+  const r=await fetch(page,{headers:{"accept":"text/html","user-agent":"ZonautaraEvergreenAgent/1.0"}});
+  if(!r.ok)throw new Error("Existing page REST/HTML gagal · HTTP "+r.status);
+  const html=await r.text();
+  title=textOnly(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").replace(/\s*[-|]\s*Zonautara.*$/i,"").trim();
+  body=textOnly(html).slice(0,50000);
+ }
  const variants=(item.query_variants||[]).slice(0,12);
  const coverage=variants.map(query=>({query,coverage:Number(queryCoverage(query,title+" "+body).toFixed(2))}));
  const gaps=coverage.filter(x=>x.coverage<0.6).map(x=>x.query);
  const covered=coverage.filter(x=>x.coverage>=0.6).map(x=>x.query);
  let recommendation=item.editorial_action||item.action||"REFRESH";
  if(recommendation==="REFRESH"&&!gaps.length&&item.ctr>=0.03)recommendation="PROTECT";
- return {page,title,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,gap_queries:gaps,coverage,recommendation,audited_at:new Date().toISOString()};
+ return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,gap_queries:gaps,coverage,recommendation,audited_at:new Date().toISOString()};
 }
