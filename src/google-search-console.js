@@ -197,5 +197,39 @@ export async function auditExistingPage(item){
  // sub-intent berbeda dengan demand terukur dan ranking halaman utama yang masih lemah.
  if(recommendation==="EXPAND"&&!expansionCandidates.length)recommendation="REFRESH";
  if(recommendation==="REFRESH"&&!semanticGaps.length&&item.ctr>=0.03&&body.split(/\s+/).filter(Boolean).length>=500)recommendation="PROTECT";
- return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,lexical_gap_queries:lexicalGaps,intent_gap_queries:semanticGaps,expansion_candidates:expansionCandidates,gap_queries:semanticGaps,coverage,recommendation,audited_at:new Date().toISOString()};
+ return {page,title,source,body_excerpt:body.slice(0,12000),word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,lexical_gap_queries:lexicalGaps,intent_gap_queries:semanticGaps,expansion_candidates:expansionCandidates,gap_queries:semanticGaps,coverage,recommendation,audited_at:new Date().toISOString()};
+}
+
+
+export function buildRefreshBrief(item,audit){
+ const action=audit?.recommendation||item?.editorial_action||"REFRESH";
+ const thin=(audit?.word_count||0)<500;
+ const ctrPct=Number(((item?.ctr||0)*100).toFixed(2));
+ const preserve=["URL lama","intent utama dan query yang sudah menghasilkan impressions"];
+ if((item?.position||99)<=5)preserve.push("topik inti yang sudah memiliki ranking kuat");
+ const add=[...(audit?.intent_gap_queries||[])];
+ if(thin)add.unshift("perluas jawaban utama: artikel saat ini hanya "+(audit?.word_count||0)+" kata");
+ const research=[...(audit?.intent_gap_queries||[])];
+ if(!research.length&&thin)research.push(item?.primary_query||"topik utama");
+ return {
+  type:"refresh_brief",
+  page:item?.page||audit?.page||"",
+  current_title:audit?.title||"",
+  action,
+  priority:item?.priority??item?.signal??0,
+  search_console:{primary_query:item?.primary_query||"",query_variants:item?.query_variants||[],impressions:item?.impressions||0,clicks:item?.clicks||0,ctr_percent:ctrPct,position:item?.position||0},
+  current_page:{word_count:audit?.word_count||0,covered_queries:audit?.covered_queries||[],lexical_gaps:audit?.lexical_gap_queries||[],intent_gaps:audit?.intent_gap_queries||[]},
+  preserve,
+  add_or_improve:add,
+  research_queries:research,
+  expansion_candidates:audit?.expansion_candidates||[],
+  instructions:[
+   "Jangan membuat URL baru kecuali expansion_candidates tervalidasi.",
+   "Pertahankan fakta lama hanya jika masih benar; verifikasi fakta yang akan ditambah.",
+   "Jawab intent pembaca secara natural, bukan menjejalkan keyword.",
+   "Jangan mengubah artikel sebelum Evidence Engine menyatakan sumber cukup."
+  ],
+  writer_allowed:false,
+  next_step:action==="PROTECT"?"MONITOR_ONLY":"RESEARCH_EVIDENCE"
+ };
 }
