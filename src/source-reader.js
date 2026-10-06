@@ -1,11 +1,11 @@
 import { extractText,getDocumentProxy } from "unpdf";
 const primary=/\.(go\.id|ac\.id)$/i;
-const trusted=/\b(brin\.go\.id|bps\.go\.id|pertanian\.go\.id|kemendesa\.go\.id|ipb\.ac\.id|fao\.org|who\.int|worldbank\.org|un\.org)\b/i;
+const trusted=/\b(brin\.go\.id|bps\.go\.id|pertanian\.go\.id|kemendesa\.go\.id|kemdikbud\.go\.id|badanbahasa\.kemdikbud\.go\.id|kbbi\.kemdikbud\.go\.id|ipb\.ac\.id|fao\.org|who\.int|worldbank\.org|un\.org)\b/i;
 const risky=/\b(pestisida|insektisida|fungisida|herbisida|nematisida|rodentisida|bahan aktif|dosis|semprot|aplikasi kimia)\b/i;
 
 function domainOf(url){try{return new URL(url).hostname.replace(/^www\./,"")}catch{return""}}
 function sourceClass(domain){
- if(/\.go\.id$/i.test(domain)||/\b(fao\.org|who\.int|worldbank\.org|un\.org)\b/i.test(domain))return "official";
+ if(/\.go\.id$/i.test(domain)||/\b(kemdikbud\.go\.id|fao\.org|who\.int|worldbank\.org|un\.org)\b/i.test(domain))return "official";
  if(/\.ac\.id$/i.test(domain))return "academic";
  if(/\.(org|or\.id)$/i.test(domain))return "organization";
  return "secondary";
