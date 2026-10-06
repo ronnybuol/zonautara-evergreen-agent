@@ -51,7 +51,7 @@ export function opportunitySignals(report){
   if(x.impressions>=1000)signal+=35;else if(x.impressions>=300)signal+=28;else if(x.impressions>=100)signal+=22;else if(x.impressions>=30)signal+=14;else signal+=8;
   if(x.position>=4&&x.position<=15)signal+=20;else if(x.position>15&&x.position<=30)signal+=12;else if(x.position<4)signal+=8;
   if(ctrPct<1)signal+=18;else if(ctrPct<3)signal+=14;else if(ctrPct<5)signal+=8;
-  if(isEvergreen)signal+=15;
+  if(isEvergreenQuery)signal+=15;
   if(isTemporal)signal-=60;
   signal=Math.max(0,Math.min(100,signal));
   let action="UPDATE";
