@@ -22,7 +22,8 @@ export function finalizeLedger(topic,sources,data,model){
   if(x.time_sensitive&&x.confidence!=="high"&&x.status==="usable")x.status="verify";
  }
  const usable=claims.filter(x=>x.status==="usable"),core=usable.filter(x=>x.relevance==="core"),gaps=Array.isArray(data.gaps)?data.gaps.map(x=>typeof x==="string"?x:(x?.gap||x?.issue||x?.description||x?.reason||JSON.stringify(x))):[];
- const editorial_notes=Array.isArray(data.editorial_notes)?data.editorial_notes.map(x=>typeof x==="string"?x:(x?.note||x?.issue||x?.description||JSON.stringify(x))):[];\n const source_unavailable=Array.isArray(data.source_unavailable)?data.source_unavailable.map(x=>typeof x==="string"?x:(x?.source||x?.reason||x?.description||JSON.stringify(x))):[];
+ const editorial_notes=Array.isArray(data.editorial_notes)?data.editorial_notes.map(x=>typeof x==="string"?x:(x?.note||x?.issue||x?.description||JSON.stringify(x))):[];
+ const source_unavailable=Array.isArray(data.source_unavailable)?data.source_unavailable.map(x=>typeof x==="string"?x:(x?.source||x?.reason||x?.description||JSON.stringify(x))):[];
  const intent=intentOf(topic),coverage=intent==="how-to"?(core.length>=3?"adequate":"insufficient"):(core.length>=2?"adequate":"insufficient");
  const minimumCore=intent==="how-to"?3:2,minimumUsable=5;
  const ready=usable.length>=minimumUsable&&core.length>=minimumCore&&coverage==="adequate";
