@@ -203,33 +203,34 @@ export async function auditExistingPage(item){
 
 export function buildRefreshBrief(item,audit){
  const action=audit?.recommendation||item?.editorial_action||"REFRESH";
- const thin=(audit?.word_count||0)<500;
+ const words=audit?.word_count||0,thin=words<500;
  const ctrPct=Number(((item?.ctr||0)*100).toFixed(2));
+ const primary=item?.primary_query||"topik utama";
  const preserve=["URL lama","intent utama dan query yang sudah menghasilkan impressions"];
  if((item?.position||99)<=5)preserve.push("topik inti yang sudah memiliki ranking kuat");
  const add=[...(audit?.intent_gap_queries||[])];
- if(thin)add.unshift("perluas jawaban utama: artikel saat ini hanya "+(audit?.word_count||0)+" kata");
  const research=[...(audit?.intent_gap_queries||[])];
- if(!research.length&&thin)research.push(item?.primary_query||"topik utama");
+ const goals=[];
+ if(thin){add.unshift("perluas jawaban utama: artikel saat ini hanya "+words+" kata");goals.push("lengkapi jawaban tanpa mengubah intent utama");}
+ if(action==="REFRESH"){
+  goals.push("verifikasi jawaban utama dengan sumber primer/otoritatif");
+  if((item?.impressions||0)>=300&&ctrPct<3){
+   goals.push("evaluasi title dan meta description untuk meningkatkan CTR tanpa clickbait");
+   add.push("periksa kecocokan judul/snippet dengan query ber-impressions tinggi");
+  }
+  if(!research.length)research.push(primary);
+ }
+ const languageTopic=/\b(kbbi|kata|ejaan|penulisan|arti|bahasa|hobi|hoby|hobby|mengonfirmasi|mengkonfirmasi)\b/i.test([primary,...(item?.query_variants||[])].join(" "));
+ const preferredSources=languageTopic?["KBBI Daring / Badan Pengembangan dan Pembinaan Bahasa","sumber kebahasaan resmi lain bila diperlukan"]:["sumber primer atau institusi resmi yang relevan"];
+ if(action==="REFRESH"&&!add.length)add.push("perkuat penjelasan dan evidence untuk jawaban utama; jangan menambah bagian hanya demi panjang artikel");
  return {
-  type:"refresh_brief",
-  page:item?.page||audit?.page||"",
-  current_title:audit?.title||"",
-  action,
+  type:"refresh_brief",page:item?.page||audit?.page||"",current_title:audit?.title||"",action,
   priority:item?.priority??item?.signal??0,
-  search_console:{primary_query:item?.primary_query||"",query_variants:item?.query_variants||[],impressions:item?.impressions||0,clicks:item?.clicks||0,ctr_percent:ctrPct,position:item?.position||0},
-  current_page:{word_count:audit?.word_count||0,covered_queries:audit?.covered_queries||[],lexical_gaps:audit?.lexical_gap_queries||[],intent_gaps:audit?.intent_gap_queries||[]},
-  preserve,
-  add_or_improve:add,
-  research_queries:research,
+  search_console:{primary_query:primary,query_variants:item?.query_variants||[],impressions:item?.impressions||0,clicks:item?.clicks||0,ctr_percent:ctrPct,position:item?.position||0},
+  current_page:{word_count:words,covered_queries:audit?.covered_queries||[],lexical_gaps:audit?.lexical_gap_queries||[],intent_gaps:audit?.intent_gap_queries||[]},
+  preserve,add_or_improve:add,research_queries:research,research_goals:goals,preferred_sources:preferredSources,
   expansion_candidates:audit?.expansion_candidates||[],
-  instructions:[
-   "Jangan membuat URL baru kecuali expansion_candidates tervalidasi.",
-   "Pertahankan fakta lama hanya jika masih benar; verifikasi fakta yang akan ditambah.",
-   "Jawab intent pembaca secara natural, bukan menjejalkan keyword.",
-   "Jangan mengubah artikel sebelum Evidence Engine menyatakan sumber cukup."
-  ],
-  writer_allowed:false,
-  next_step:action==="PROTECT"?"MONITOR_ONLY":"RESEARCH_EVIDENCE"
+  instructions:["Jangan membuat URL baru kecuali expansion_candidates tervalidasi.","Pertahankan fakta lama hanya jika masih benar; verifikasi fakta yang akan ditambah.","Jawab intent pembaca secara natural, bukan menjejalkan keyword.","Jangan mengubah artikel sebelum Evidence Engine menyatakan sumber cukup."],
+  writer_allowed:false,next_step:action==="PROTECT"?"MONITOR_ONLY":"RESEARCH_EVIDENCE"
  };
 }
