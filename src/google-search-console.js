@@ -37,6 +37,10 @@ const temporal=/\b(hari ini|kemarin|terbaru|breaking|live|update|jadwal|skor|pre
 const newsPath=/\/202[4-9]\/\d{2}\/\d{2}\//i;
 const evergreenPath=/\/(tool|alat-gratis|kamus|glosarium|panduan)\//i;
 const evergreen=/\b(cara|apa itu|mengapa|kenapa|perbedaan|arti|mana yang benar|panduan|tips|jenis|fungsi|manfaat|daftar|letak|contoh|pengertian|penulisan)\b/i;
+const brand=/\b(zonautara|zona utara|zonatua)\b/i;
+const unsafe=/\b(porno|bokep|situs dewasa|judi|slot)\b/i;
+const matchEvent=/\b(vs|versus|final|semifinal|pertandingan|skor)\b/i;
+const profilePath=/\/orang_sulut\//i;
 export function opportunitySignals(report){
  if(report?.type!=="web")return (report?.rows||[]).filter(x=>x.page&&x.impressions>=10).map(x=>({...x,signal:Math.min(100,Math.round(Math.log10(x.impressions+1)*25)),action:"OBSERVE"})).sort((a,b)=>b.impressions-a.impressions).slice(0,50);
  const rows=(report?.rows||[]).filter(x=>x.query&&x.impressions>=10);
@@ -44,6 +48,7 @@ export function opportunitySignals(report){
   const q=x.query.toLowerCase(),p=String(x.page||"").toLowerCase(),ctrPct=x.ctr*100;
   const queryTemporal=temporal.test(q),datedNews=newsPath.test(p)&&!evergreenPath.test(p);
   const isEvergreenQuery=evergreen.test(q);
+  const ineligible=brand.test(q)||unsafe.test(q)||matchEvent.test(q)||profilePath.test(p);
   // Halaman bertanggal tidak otomatis dibuang: artikel bahasa/panduan lama bisa evergreen.
   // Namun halaman bertanggal + query kejadian/aktor aktual harus dianggap temporal.
   const isTemporal=queryTemporal||(datedNews&&!isEvergreenQuery&&/\b(gempa|earthquake|korup|kasus|menteri|menkeu|pemilu|pilkada|breaking)\b/i.test(q));
@@ -53,11 +58,12 @@ export function opportunitySignals(report){
   if(ctrPct<1)signal+=18;else if(ctrPct<3)signal+=14;else if(ctrPct<5)signal+=8;
   if(isEvergreenQuery)signal+=15;
   if(isTemporal)signal-=60;
+  if(ineligible)signal-=80;
   signal=Math.max(0,Math.min(100,signal));
   let action="UPDATE";
-  if(isTemporal)action="IGNORE";
+  if(isTemporal||ineligible)action="IGNORE";
   else if(x.position>20&&x.impressions>=100)action="EXPAND";
   else if(x.position<=3&&ctrPct>=5)action="PROTECT";
-  return {...x,signal,evergreen:!isTemporal,action};
+  return {...x,signal,evergreen:!isTemporal&&!ineligible,eligible:!isTemporal&&!ineligible,action};
  }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,50);
 }
