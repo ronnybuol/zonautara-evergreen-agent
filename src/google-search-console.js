@@ -28,7 +28,7 @@ export async function searchConsoleSignals(env,siteUrl,type="web",days=28){
  const token=await accessToken(env),end=iso(3),start=iso(days+2);
  const u="https://www.googleapis.com/webmasters/v3/sites/"+encodeURIComponent(siteUrl)+"/searchAnalytics/query";
  const dimensions=type==="web"?["query","page"]:["page"];
- const r=await fetch(u,{method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:JSON.stringify({startDate:start,endDate:end,dimensions,type,rowLimit:250,dataState:"final"})});
+ const r=await fetch(u,{method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:JSON.stringify({startDate:start,endDate:end,dimensions,type,rowLimit:type==="web"?2500:250,dataState:"final"})});
  if(!r.ok){let detail="";try{detail=await r.text()}catch{}throw new Error("Search Console HTTP "+r.status+(detail?": "+detail.slice(0,220):""))}
  const d=await r.json(),rows=(d.rows||[]).map(x=>type==="web"?{query:x.keys?.[0]||"",page:x.keys?.[1]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}:{query:"",page:x.keys?.[0]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0});
  return {type,startDate:start,endDate:end,rows};
@@ -37,12 +37,12 @@ const temporal=/\b(hari ini|kemarin|terbaru|breaking|live|update|jadwal|skor|pre
 const newsPath=/\/202[4-9]\/\d{2}\/\d{2}\//i;
 const evergreenPath=/\/(tool|alat-gratis|kamus|glosarium|panduan)\//i;
 const evergreen=/\b(cara|apa itu|mengapa|kenapa|perbedaan|arti|mana yang benar|panduan|tips|jenis|fungsi|manfaat|daftar|letak|contoh|pengertian|penulisan)\b/i;
-const brand=/\b(zonautara|zona utara|zonatua)\b/i;
-const unsafe=/\b(porno|bokep|situs dewasa|judi|slot)\b/i;
-const matchEvent=/\b(vs|versus|final|semifinal|pertandingan|skor)\b/i;
+const brand=/\b(zonautara|zona utara|zonatua|zona tua)\b/i;
+const unsafe=/\b(porno|bokep|xxx|situs dewasa|judi|slot)\b/i;
+const matchEvent=/\b(vs|versus|final|semifinal|pertandingan|skor|tempat dan cara menonton|cara menontonnya)\b/i;
 const profilePath=/\/orang_sulut\//i;
-export function opportunitySignals(report){
- if(report?.type!=="web")return (report?.rows||[]).filter(x=>x.page&&x.impressions>=10).map(x=>({...x,signal:Math.min(100,Math.round(Math.log10(x.impressions+1)*25)),action:"OBSERVE"})).sort((a,b)=>b.impressions-a.impressions).slice(0,50);
+function scoredWebRows(report){
+ if(report?.type!=="web")return [];
  const rows=(report?.rows||[]).filter(x=>x.query&&x.impressions>=10);
  return rows.map(x=>{
   const q=x.query.toLowerCase(),p=String(x.page||"").toLowerCase(),ctrPct=x.ctr*100;
@@ -65,13 +65,16 @@ export function opportunitySignals(report){
   else if(x.position>20&&x.impressions>=100)action="EXPAND";
   else if(x.position<=3&&ctrPct>=5)action="PROTECT";
   return {...x,signal,evergreen:!isTemporal&&!ineligible,eligible:!isTemporal&&!ineligible,action};
- }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,50);
+ }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions);
 }
-
+export function opportunitySignals(report){
+ if(report?.type!=="web")return (report?.rows||[]).filter(x=>x.page&&x.impressions>=10).map(x=>({...x,signal:Math.min(100,Math.round(Math.log10(x.impressions+1)*25)),action:"OBSERVE"})).sort((a,b)=>b.impressions-a.impressions).slice(0,50);
+ return scoredWebRows(report).slice(0,50);
+}
 
 export function clusterOpportunities(report){
  if(report?.type!=="web")return [];
- const items=opportunitySignals(report).filter(x=>x.eligible&&x.action!=="IGNORE");
+ const items=scoredWebRows(report).filter(x=>x.eligible&&x.action!=="IGNORE");
  const groups=new Map();
  for(const x of items){
   const key=x.page||x.query;
