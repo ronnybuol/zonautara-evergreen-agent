@@ -143,3 +143,28 @@ export function editorialOpportunityQueue(report){
   };
  }).sort((a,b)=>b.priority-a.priority||b.impressions-a.impressions).slice(0,20);
 }
+
+
+function textOnly(html){return String(html||"").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;|&#160;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim()}
+function tokens(s){return [...new Set(String(s||"").toLowerCase().normalize("NFKC").replace(/[^a-z0-9\u00c0-\u024f\s-]/g," ").split(/\s+/).filter(x=>x.length>2&&!["yang","dan","atau","dari","untuk","dengan","pada","adalah","ini","itu"].includes(x)))]}
+function queryCoverage(query,text){
+ const ts=tokens(query);if(!ts.length)return 0;
+ const hay=" "+String(text||"").toLowerCase()+" ";
+ return ts.filter(t=>hay.includes(t)).length/ts.length;
+}
+export async function auditExistingPage(item){
+ const page=String(item?.page||"");
+ if(!/^https:\/\/zonautara\.com\//i.test(page))throw new Error("Audit hanya diizinkan untuk halaman zonautara.com");
+ const r=await fetch(page,{headers:{"user-agent":"ZonautaraEvergreenAgent/1.0"}});
+ if(!r.ok)throw new Error("Existing page HTTP "+r.status);
+ const html=await r.text();
+ const title=(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").replace(/\s*[-|]\s*Zonautara.*$/i,"").trim();
+ const body=textOnly(html).slice(0,50000);
+ const variants=(item.query_variants||[]).slice(0,12);
+ const coverage=variants.map(query=>({query,coverage:Number(queryCoverage(query,title+" "+body).toFixed(2))}));
+ const gaps=coverage.filter(x=>x.coverage<0.6).map(x=>x.query);
+ const covered=coverage.filter(x=>x.coverage>=0.6).map(x=>x.query);
+ let recommendation=item.editorial_action||item.action||"REFRESH";
+ if(recommendation==="REFRESH"&&!gaps.length&&item.ctr>=0.03)recommendation="PROTECT";
+ return {page,title,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,gap_queries:gaps,coverage,recommendation,audited_at:new Date().toISOString()};
+}
