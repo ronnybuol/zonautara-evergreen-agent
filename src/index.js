@@ -2,7 +2,7 @@ import { dashboard } from "./ui.js";
 import { researchTopic,researchQuery,providerState } from "./research.js";
 import { discoverQueries,evaluateCandidate } from "./opportunity.js";
 import { curateTopics,llmState,askJson } from "./llm.js";
-import { evidencePrompt,finalizeLedger } from "./evidence.js";
+import { evidencePrompt,refreshEvidencePrompt,finalizeLedger } from "./evidence.js";
 import { readSources,sourcePacket } from "./source-reader.js";
 import { balanceEvidence,writerPrompt,finalizeArticle } from "./writer.js";
 import { languageGate,verifierPrompt,finalizeVerification } from "./verifier.js";
@@ -35,6 +35,24 @@ function mergeResearch(a,b){
  for(const x of [...(a?.results||[]),...(b?.results||[])]){if(!x.url||seen.has(x.url))continue;seen.add(x.url);results.push(x);}
  const domains=[...new Set(results.map(x=>{try{return new URL(x.url).hostname.replace(/^www\./,"")}catch{return""}}).filter(Boolean))];
  return {query:(a?.query||"")+" + enrichment",provider:a?.provider||b?.provider,results:results.slice(0,12),domain_count:domains.length,enough:results.length>=4&&domains.length>=3};
+}
+async function refreshEvidence(item,s,env){
+ const audit=await auditExistingPage(item),brief=buildRefreshBrief(item,audit);
+ if(brief.next_step==="MONITOR_ONLY")return {audit,brief,evidence:null,evidence_ready:false,reason:"Halaman berstatus PROTECT; tidak perlu refresh evidence"};
+ const provider=s.research_provider||"brave",queries=[...(brief.research_queries||[])];
+ if(!queries.length)queries.push(brief.search_console.primary_query);
+ let research=null;
+ for(const q of queries.slice(0,3)){
+  const preferred=(brief.preferred_sources||[]).join(" ");
+  const rq=await researchQuery((q+" "+preferred).trim(),provider,env);
+  research=research?mergeResearch(research,rq):rq;
+ }
+ const read=await readSources(research?.results||[]),packet=sourcePacket(read);
+ if(packet.length<2){const evidence=finalizeLedger(brief.search_console.primary_query,read,{claims:[],gaps:["Kurang dari dua sumber refresh dapat dibaca penuh"]},"none");return {audit,brief,research,evidence,evidence_ready:false};}
+ const built=refreshEvidencePrompt(brief,{results:packet.map(x=>({id:x.id,title:x.title,url:x.url,snippet:x.text}))},audit.body_excerpt||"");
+ const out=await askJson(built.instruction,s,env,0.1,"Refresh Evidence");
+ const evidence=finalizeLedger(brief.search_console.primary_query,read,out.data,out.model);
+ return {audit,brief,research,evidence,evidence_ready:evidence.ready,writer_allowed:false};
 }
 async function writerPreview(topic,ledger,s,env){
  const balanced=balanceEvidence(ledger);
@@ -72,6 +90,7 @@ export default{async fetch(req,env){const u=new URL(req.url);
  if(u.pathname==="/api/google-signals"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{const site=b.site_url||s.gsc_site_url||"sc-domain:zonautara.com",types=Array.isArray(b.types)&&b.types.length?b.types:["web","discover","googleNews"],reports={};for(const type of types){try{const report=await searchConsoleSignals(env,site,type,28);reports[type]={...report,opportunities:opportunitySignals(report),clusters:clusterOpportunities(report),editorial_queue:editorialOpportunityQueue(report)}}catch(e){reports[type]={error:e.message}}}return json({ok:true,site,reports});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/page-audit"&&req.method==="POST"){const b=await req.json();try{if(!b?.page)return json({ok:false,error:"page wajib diisi"},400);return json({ok:true,audit:await auditExistingPage(b)});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/refresh-brief"&&req.method==="POST"){const b=await req.json();try{if(!b?.page)return json({ok:false,error:"page wajib diisi"},400);const audit=await auditExistingPage(b);return json({ok:true,audit,brief:buildRefreshBrief(b,audit)});}catch(e){return json({ok:false,error:e.message},400);}}
+ if(u.pathname==="/api/refresh-evidence"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{if(!b?.page)return json({ok:false,error:"page wajib diisi"},400);return json({ok:true,...await timeout(refreshEvidence(b,s,env),90000,"Refresh Evidence")});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/research-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{return json({ok:true,...await researchTopic(b.topic||"pengetahuan umum",b.provider||s.research_provider||"brave",env)});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/opportunity-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{return json({ok:true,...await opportunity(b.category||"pengetahuan umum",b.provider||s.research_provider||"brave",env,s)});}catch(e){return json({ok:false,error:e.message},400);}}
  if(u.pathname==="/api/evidence-test"&&req.method==="POST"){const b=await req.json(),s=await settings(env);try{const o=await opportunity(b.category||"pengetahuan umum",b.provider||s.research_provider||"brave",env,s);if(!o.best||o.best.decision!=="CONTINUE")return json({ok:false,error:"Tidak ada kandidat yang lolos"},400);const ledger=await evidenceLedger(o.best.query,o.best.research,s,env);return json({ok:true,topic:o.best.query,score:o.best.score,editorial_fit:o.best.editorial_fit,evidence:ledger});}catch(e){return json({ok:false,error:e.message},400);}}
