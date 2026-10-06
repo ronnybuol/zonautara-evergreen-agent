@@ -27,19 +27,30 @@ export function gscState(env){return {configured:!!(env.GSC_CLIENT_EMAIL&&env.GS
 export async function searchConsoleSignals(env,siteUrl,type="web",days=28){
  const token=await accessToken(env),end=iso(3),start=iso(days+2);
  const u="https://www.googleapis.com/webmasters/v3/sites/"+encodeURIComponent(siteUrl)+"/searchAnalytics/query";
- const r=await fetch(u,{method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:JSON.stringify({startDate:start,endDate:end,dimensions:["query","page"],type,rowLimit:250,dataState:"final"})});
+ const dimensions=type==="web"?["query","page"]:["page"];
+ const r=await fetch(u,{method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:JSON.stringify({startDate:start,endDate:end,dimensions,type,rowLimit:250,dataState:"final"})});
  if(!r.ok){let detail="";try{detail=await r.text()}catch{}throw new Error("Search Console HTTP "+r.status+(detail?": "+detail.slice(0,220):""))}
- const d=await r.json(),rows=(d.rows||[]).map(x=>({query:x.keys?.[0]||"",page:x.keys?.[1]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}));
+ const d=await r.json(),rows=(d.rows||[]).map(x=>type==="web"?{query:x.keys?.[0]||"",page:x.keys?.[1]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0}:{query:"",page:x.keys?.[0]||"",clicks:x.clicks||0,impressions:x.impressions||0,ctr:x.ctr||0,position:x.position||0});
  return {type,startDate:start,endDate:end,rows};
 }
+const temporal=/\b(hari ini|kemarin|terbaru|breaking|live|update|jadwal|skor|prediksi|hasil pertandingan|gempa|pengumuman|finalis|korupsi|kpk|menteri|menkeu|pilkada|pemilu|202[4-9])\b/i;
+const evergreen=/\b(cara|apa itu|mengapa|kenapa|perbedaan|arti|mana yang benar|panduan|tips|jenis|fungsi|manfaat|daftar|letak|contoh|pengertian|penulisan)\b/i;
 export function opportunitySignals(report){
+ if(report?.type!=="web")return (report?.rows||[]).filter(x=>x.page&&x.impressions>=10).map(x=>({...x,signal:Math.min(100,Math.round(Math.log10(x.impressions+1)*25)),action:"OBSERVE"})).sort((a,b)=>b.impressions-a.impressions).slice(0,50);
  const rows=(report?.rows||[]).filter(x=>x.query&&x.impressions>=10);
  return rows.map(x=>{
-  const ctrPct=x.ctr*100;
+  const q=x.query.toLowerCase(),ctrPct=x.ctr*100,isTemporal=temporal.test(q),isEvergreen=evergreen.test(q);
   let signal=0;
-  if(x.impressions>=100)signal+=25;else if(x.impressions>=30)signal+=15;else signal+=8;
-  if(x.position>=4&&x.position<=20)signal+=20;else if(x.position>20&&x.position<=50)signal+=10;
-  if(ctrPct<2)signal+=15;else if(ctrPct<5)signal+=8;
-  return {...x,signal};
+  if(x.impressions>=1000)signal+=35;else if(x.impressions>=300)signal+=28;else if(x.impressions>=100)signal+=22;else if(x.impressions>=30)signal+=14;else signal+=8;
+  if(x.position>=4&&x.position<=15)signal+=20;else if(x.position>15&&x.position<=30)signal+=12;else if(x.position<4)signal+=8;
+  if(ctrPct<1)signal+=18;else if(ctrPct<3)signal+=14;else if(ctrPct<5)signal+=8;
+  if(isEvergreen)signal+=15;
+  if(isTemporal)signal-=60;
+  signal=Math.max(0,Math.min(100,signal));
+  let action="UPDATE";
+  if(isTemporal)action="IGNORE";
+  else if(x.position>20&&x.impressions>=100)action="EXPAND";
+  else if(x.position<=3&&ctrPct>=5)action="PROTECT";
+  return {...x,signal,evergreen:!isTemporal,action};
  }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,50);
 }
