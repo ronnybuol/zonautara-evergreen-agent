@@ -67,3 +67,47 @@ export function opportunitySignals(report){
   return {...x,signal,evergreen:!isTemporal&&!ineligible,eligible:!isTemporal&&!ineligible,action};
  }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,50);
 }
+
+
+export function clusterOpportunities(report){
+ if(report?.type!=="web")return [];
+ const items=opportunitySignals(report).filter(x=>x.eligible&&x.action!=="IGNORE");
+ const groups=new Map();
+ for(const x of items){
+  const key=x.page||x.query;
+  if(!groups.has(key))groups.set(key,{page:x.page,queries:[],clicks:0,impressions:0,weightedPosition:0,maxSignal:0});
+  const g=groups.get(key);
+  g.queries.push(x);
+  g.clicks+=x.clicks||0;
+  g.impressions+=x.impressions||0;
+  g.weightedPosition+=(x.position||0)*(x.impressions||0);
+  g.maxSignal=Math.max(g.maxSignal,x.signal||0);
+ }
+ return [...groups.values()].map(g=>{
+  const ctr=g.impressions?g.clicks/g.impressions:0;
+  const position=g.impressions?g.weightedPosition/g.impressions:0;
+  const sorted=[...g.queries].sort((a,b)=>b.impressions-a.impressions);
+  const primary=sorted[0]||{};
+  const queryCount=sorted.length;
+  let score=g.maxSignal;
+  if(queryCount>=4)score+=8;else if(queryCount>=2)score+=4;
+  if(g.impressions>=3000)score+=8;else if(g.impressions>=1000)score+=5;
+  score=Math.min(100,Math.round(score));
+  let action="UPDATE";
+  if(position<=3&&ctr>=0.05)action="PROTECT";
+  else if(position>15&&g.impressions>=300)action="EXPAND";
+  else if(queryCount>=3&&position<=10)action="UPDATE";
+  return {
+   page:g.page,
+   primary_query:primary.query||"",
+   query_variants:sorted.slice(0,12).map(x=>x.query),
+   query_count:queryCount,
+   clicks:g.clicks,
+   impressions:g.impressions,
+   ctr,
+   position:Number(position.toFixed(2)),
+   signal:score,
+   action
+  };
+ }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,30);
+}
