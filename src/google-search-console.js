@@ -152,6 +152,17 @@ function queryCoverage(query,text){
  const hay=" "+String(text||"").toLowerCase()+" ";
  return ts.filter(t=>hay.includes(t)).length/ts.length;
 }
+function stemToken(t){return String(t||"").replace(/^(penulisan|tulisan)$/,"tulis").replace(/^(hobby|hoby)$/,"hobi")}
+function intentSignature(q){
+ const ts=tokens(q).map(stemToken);
+ const mode=/\b(cara|bagaimana)\b/i.test(q)?"how":/\b(arti|artinya|pengertian|apa itu)\b/i.test(q)?"meaning":/\b(mana yang benar|yang benar|penulisan|tulisan)\b/i.test(q)?"correctness":"topic";
+ return mode+":"+[...new Set(ts.filter(t=>!["tulis","cara","mana","benar"].includes(t)))].sort().join("-");
+}
+function intentGaps(variants,coverage){
+ const strong=coverage.filter(x=>x.coverage>=0.6).map(x=>intentSignature(x.query));
+ const known=new Set(strong);
+ return coverage.filter(x=>x.coverage<0.6&&!known.has(intentSignature(x.query))).map(x=>x.query);
+}
 export async function auditExistingPage(item){
  const page=String(item?.page||"");
  if(!/^https:\/\/zonautara\.com\//i.test(page))throw new Error("Audit hanya diizinkan untuk halaman zonautara.com");
@@ -176,9 +187,11 @@ export async function auditExistingPage(item){
  }
  const variants=(item.query_variants||[]).slice(0,12);
  const coverage=variants.map(query=>({query,coverage:Number(queryCoverage(query,title+" "+body).toFixed(2))}));
- const gaps=coverage.filter(x=>x.coverage<0.6).map(x=>x.query);
+ const lexicalGaps=coverage.filter(x=>x.coverage<0.6).map(x=>x.query);
  const covered=coverage.filter(x=>x.coverage>=0.6).map(x=>x.query);
+ const semanticGaps=intentGaps(variants,coverage);
  let recommendation=item.editorial_action||item.action||"REFRESH";
- if(recommendation==="REFRESH"&&!gaps.length&&item.ctr>=0.03)recommendation="PROTECT";
- return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,gap_queries:gaps,coverage,recommendation,audited_at:new Date().toISOString()};
+ if(recommendation==="EXPAND"&&!semanticGaps.length)recommendation="REFRESH";
+ if(recommendation==="REFRESH"&&!semanticGaps.length&&item.ctr>=0.03&&body.split(/\s+/).filter(Boolean).length>=500)recommendation="PROTECT";
+ return {page,title,source,word_count:body.split(/\s+/).filter(Boolean).length,covered_queries:covered,lexical_gap_queries:lexicalGaps,intent_gap_queries:semanticGaps,gap_queries:semanticGaps,coverage,recommendation,audited_at:new Date().toISOString()};
 }
