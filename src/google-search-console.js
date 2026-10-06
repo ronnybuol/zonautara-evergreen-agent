@@ -114,3 +114,32 @@ export function clusterOpportunities(report){
   };
  }).sort((a,b)=>b.signal-a.signal||b.impressions-a.impressions).slice(0,30);
 }
+
+
+function editorialReason(x){
+ const ctrPct=x.ctr*100;
+ if(x.action==="PROTECT")return "Posisi dan CTR sudah kuat; pertahankan intent, URL, dan struktur utama.";
+ if(x.action==="EXPAND")return "Demand terlihat tetapi posisi masih lemah; teliti sub-intent untuk artikel pendukung, bukan mengganti halaman utama.";
+ if(x.impressions>=1000&&x.position<=5&&ctrPct<2)return "Impressions tinggi dan ranking kuat, tetapi CTR rendah; prioritaskan refresh judul, dek, snippet, dan kecocokan intent.";
+ if(x.query_count>=3)return "Banyak variasi query menuju halaman yang sama; refresh halaman agar menjawab cluster intent secara lebih lengkap.";
+ return "Ada demand evergreen yang layak ditingkatkan pada halaman yang sudah ada.";
+}
+export function editorialOpportunityQueue(report){
+ return clusterOpportunities(report).map(x=>{
+  const ctrPct=x.ctr*100;
+  let action=x.action==="UPDATE"?"REFRESH":x.action;
+  let priority=x.signal;
+  if(action==="REFRESH"&&x.impressions>=1000&&ctrPct<2)priority+=8;
+  if(action==="PROTECT")priority-=15;
+  if(action==="EXPAND"&&x.impressions>=500)priority+=5;
+  priority=Math.max(0,Math.min(100,Math.round(priority)));
+  return {
+   ...x,
+   editorial_action:action,
+   priority,
+   reason:editorialReason({...x,action}),
+   next_step:action==="REFRESH"?"AUDIT_EXISTING_PAGE":action==="EXPAND"?"RESEARCH_SUBINTENTS":action==="PROTECT"?"MONITOR_ONLY":"HOLD",
+   auto_write:false
+  };
+ }).sort((a,b)=>b.priority-a.priority||b.impressions-a.impressions).slice(0,20);
+}
