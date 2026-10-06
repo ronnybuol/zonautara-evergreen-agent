@@ -43,9 +43,14 @@ async function refreshEvidence(item,s,env){
  if(!queries.length)queries.push(brief.search_console.primary_query);
  let research=null;
  for(const q of queries.slice(0,3)){
-  const preferred=(brief.preferred_sources||[]).join(" ");
-  const rq=await researchQuery((q+" "+preferred).trim(),provider,env);
+  const rq=await researchQuery(q,provider,env);
   research=research?mergeResearch(research,rq):rq;
+  const languageTopic=/\b(kbbi|kata|ejaan|penulisan|arti|bahasa|hobi|hoby|hobby|mengonfirmasi|mengkonfirmasi)\b/i.test(q+" "+brief.search_console.primary_query);
+  if(languageTopic){
+   for(const targeted of [q+" site:kbbi.kemdikbud.go.id",q+" site:badanbahasa.kemdikbud.go.id"]){
+    try{research=mergeResearch(research,await researchQuery(targeted,provider,env))}catch{}
+   }
+  }
  }
  const read=await readSources(research?.results||[]),packet=sourcePacket(read);
  if(packet.length<2){const evidence=finalizeLedger(brief.search_console.primary_query,read,{claims:[],gaps:["Kurang dari dua sumber refresh dapat dibaca penuh"]},"none");return {audit,brief,research,evidence,evidence_ready:false};}
